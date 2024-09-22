@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="../caper/icon.png" type="image/x-icon">
+    <title>Сапер</title>
+
+    <style>
+        body {
+            background-color: rgb(144, 255, 168);
+        }
+        td {
+            border: 1px solid black;
+            height: 35px;
+            min-width: 35px;
+            font-size: 20px;
+            text-align: center;
+        }
+        td.flag {
+            color: red;
+        }
+        td.flag::before {
+            content: "🦠";
+        }
+        td.opened {
+            background-color: white;
+        }
+        td.closed {
+            background-color: lightgrey;
+        }
+        td.closed:hover {
+            background-color: gainsboro;
+        }
+        td.mine {
+            background-color: red;
+        }
+        td.mine::before {
+            content: "⚙️";
+        }
+        td.color-1 {
+            color: blue;
+        }
+        td.color-1::before {
+            content: "1";
+        }
+        td.color-2 {
+            color: green;
+        }
+        td.color-2::before {
+            content: "2";
+        }
+        td.color-3 {
+            color: red;
+        }
+        td.color-3::before {
+            content: "3";
+        }
+        td.color-4 {
+            color: purple;
+        }
+        td.color-4::before {
+            content: "4";
+        }
+        td.color-5 {
+            color: darkred;
+        }
+        td.color-5::before {
+            content: "5";
+        }
+        td.color-6 {
+            color: aqua;
+        }
+        td.color-6::before {
+            content: "6";
+        }
+        td.color-7 {
+            color: darkblue;
+        }
+        td.color-7::before {
+            content: "7";
+        }
+        td.color-8 {
+            color: grey;
+        }
+        td.color-8::before {
+            content: "8";
+        }
+        #fieldplace {
+            position:absolute;
+            overflow: auto;
+            background-image: url(../caper/back.webp);
+        }
+        .field {
+            border-collapse: collapse;
+            border-spacing: 0px;
+            position: absolute;
+            table-layout: fixed;
+        }
+        #info {
+            text-align: center;
+            font-size: large;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <input type="button" id="btn" value="Заново" onclick="restart()">
+        <label>Высота: <input type="text" id="height" value="10"/></label>
+        <label>Ширина: <input type="text" id="width" value="10"/></label>
+        <label>Мины: <input type="text" id="mines" value="13"/></label>
+
+        <hr>
+    </div>
+    <div id="fieldplace"></div>
+    <script>
+        restart();
+
+        function restart(){
+            if (isNatural(height.value) && isNatural(width.value) && isNatural(mines.value)){
+                rowsNumber = +height.value;
+                columnsNumber = +width.value;
+                minesNumber = +mines.value;
+                newGame(rowsNumber, columnsNumber, minesNumber);
+                document.body.style.backgroundColor = 'rgb(144, 255, 168)';
+            }
+        }
+
+        function newGame(rowsNumber, columnsNumber, minesNumber){
+            fieldplace.style.width = document.documentElement.clientWidth-16+'px';
+            fieldplace.style.height = document.documentElement.clientHeight-info.getBoundingClientRect().bottom-8+'px';
+            fieldplace.innerHTML = '';
+            var field = createField(rowsNumber, columnsNumber);
+            fieldplace.append(field);
+            setOnCenter(field);
+            setMines(field, minesNumber);
+        }
+
+        function createField(height, width){
+            var field = document.createElement('table');
+            var tbody = document.createElement('tbody');
+            field.append(tbody);
+            for (let i=0; i<height; i++){
+                let row = document.createElement('tr');
+                for (let j=0; j<width; j++){
+                    let td = document.createElement('td');
+                    td.className = 'closed';
+                    td.digit = 0;
+                    td.mined = false;
+                    row.append(td);
+                }
+                tbody.append(row);
+            }
+            field.className = 'field';
+            field.onclick = clickTd;
+            field.oncontextmenu = setFlag;
+            field.getTd = getTd.bind(null, field);
+            field.dataset.columns = width;
+            field.dataset.rows = height;
+            field.dataset.closedCells = height*width;
+            return field;
+        }
+
+        function setOnCenter(elem){
+            var rect = elem.getBoundingClientRect();
+            var height = rect.bottom - rect.top;
+            var width = rect.right - rect.left;
+            elem.style.top = Math.max(0, (document.documentElement.clientHeight - height)/2) + 'px';
+            elem.style.left = Math.max(0, (document.documentElement.clientWidth - width)/2) + 'px';
+        }
+
+        function setMines(field, minesNumber){
+            var m = minesNumber;
+            while (m>0){
+                let rowIndex = randInt(field.dataset.rows);
+                let columnIndex = randInt(field.dataset.columns);
+                let td = field.getTd(rowIndex, columnIndex);
+                if (!td.mined) {
+                    td.mined = true;
+                    for (neighbor of tdArea(td)){
+                        neighbor.digit++;
+                    }
+                    m--;
+                }
+            }
+            field.dataset.mines = minesNumber;
+        }
+
+        function kill(elem){
+            elem.onclick = null;
+            elem.oncontextmenu = null;
+        }
+
+        function showMines(field){
+            for (let row=0; row<field.dataset.rows; row++){
+                for (let column=0; column<field.dataset.columns; column++){
+                    let td = field.getTd(row, column);
+                    if (td.mined) {
+                        td.className = 'mine';
+                    }
+                }
+            }
+        }
+
+        function setFlag(event){
+            event.preventDefault();
+            var target = event.target;
+            while (target.tagName != 'TD'){
+                target = target.parentNode;
+                if (target == this) return;
+            }
+            if (!target.classList.contains('closed')) return;
+            target.classList.toggle('flag');
+        }
+
+        function openTd(target){
+            var field = target.parentNode.parentNode.parentNode;
+            target.classList.remove('closed');
+            if (target.mined){
+                target.className='mine';
+                showMines(field);
+                alert('ИНОПЛАНЕТЯНЕ ЗАХВАТИЛИ МИР!');
+                kill(field);
+                document.body.style.backgroundColor = 'red';
+                return;
+            }
+            field.dataset.closedCells--;
+            target.className = 'color-'+target.digit;
+            target.classList.add('opened');
+            if (field.dataset.closedCells == field.dataset.mines){
+                alert('ВЫ СПАСЛИ МИР ОТ ИНОПЛАНЕТЯН!');
+                kill(field);
+            }
+            if (!target.digit){
+                for (neighbor of tdArea(target)){
+                    if (neighbor.classList.contains('closed')){
+                        openTd(neighbor);
+                    }
+                }
+            }
+        }
+
+        function clickTd(event){
+            var target = event.target;
+            while (target.tagName != 'TD'){
+                target = target.parentNode;
+                if (target == this) return;
+            }
+            if (!target.classList.contains('closed') || target.classList.contains('flag')) return;
+            openTd(target);
+        }
+
+        function* tdArea(td){
+            var tdColumnIndex = td.cellIndex;
+            var tdRowIndex = td.parentNode.rowIndex;
+            var tbody = td.parentNode.parentNode;
+            var height = tbody.rows.length;
+            var width = td.parentNode.cells.length;
+            for (let column=tdColumnIndex-1; column<=tdColumnIndex+1; column++){
+                for (let row=tdRowIndex-1; row<=tdRowIndex+1; row++){
+                    if (row>=0 && column>=0 && row<height && column<width && (row!=tdRowIndex || column!=tdColumnIndex)){
+                        yield getTd(tbody.parentNode, row, column);
+                    }
+                }
+            }
+        }
+
+        function randInt(n){
+            return Math.floor(n*Math.random());
+        }
+
+        function getTd(table, row, column){
+            var tbody = table.tBodies[0];
+            return tbody.rows[row].cells[column];
+        }
+        function isNatural(text){
+            return +text>0 && ((~~+text) == +text);
+        }
+    </script>
+
+</body>
+</html>
